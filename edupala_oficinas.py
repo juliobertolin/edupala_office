@@ -124,6 +124,11 @@ CAMPOS_TEXTO = [
 def segredo(chave: str, padrao: Any = None) -> Any:
     """Lê st.secrets sem quebrar quando o arquivo de secrets não existe."""
     try:
+        if chave in st.secrets:
+            return st.secrets[chave]
+    except Exception:  # noqa: BLE001
+        pass
+    try:
         return st.secrets.get(chave, padrao)
     except Exception:  # noqa: BLE001
         return padrao
@@ -164,8 +169,37 @@ def usando_banco_na_nuvem() -> bool:
     return not url_banco().startswith("sqlite")
 
 
-def criar_tabela() -> None:
-    metadata.create_all(motor())
+def criar_tabela() -> str | None:
+    """Cria a tabela. Devolve None se der certo, ou o texto do erro."""
+    try:
+        metadata.create_all(motor())
+        return None
+    except Exception as erro:  # noqa: BLE001
+        return f"{type(erro).__name__}: {erro}"
+
+
+def diagnostico() -> dict[str, Any]:
+    """Informações para conferir se o banco na nuvem está mesmo em uso."""
+    info: dict[str, Any] = {}
+    url = url_banco()
+    if "@" in url and "://" in url:
+        inicio, resto = url.split("://", 1)
+        credencial, servidor = resto.split("@", 1)
+        usuario = credencial.split(":", 1)[0]
+        info["URL em uso"] = f"{inicio}://{usuario}:***@{servidor}"
+    else:
+        info["URL em uso"] = url
+    info["Secret banco_url encontrado"] = "sim" if segredo("banco_url") else "NÃO"
+    try:
+        info["Dialeto conectado"] = motor().dialect.name
+        with motor().connect() as con:
+            info["Servidor respondeu"] = "sim"
+            info["Total de propostas no banco"] = con.execute(
+                select(func.count()).select_from(propostas)
+            ).scalar()
+    except Exception as erro:  # noqa: BLE001
+        info["Servidor respondeu"] = f"NÃO — {type(erro).__name__}: {erro}"
+    return info
 
 
 def salvar(dados: dict[str, Any]) -> str:
@@ -514,6 +548,10 @@ def tela_coordenacao() -> None:
             "num servidor em nuvem esses dados podem ser apagados a cada reinício."
         )
 
+    with st.expander("Diagnóstico da conexão"):
+        for chave, valor in diagnostico().items():
+            st.markdown(f"**{chave}:** {valor}")
+
     df = carregar_propostas()
     if df.empty:
         st.info("Nenhuma proposta recebida até o momento.")
@@ -576,7 +614,13 @@ def main() -> None:
     st.set_page_config(
         page_title=f"Oficinas — {EVENTO} {EDICAO}", page_icon="🔬", layout="centered"
     )
-    criar_tabela()
+    erro = criar_tabela()
+    if erro:
+        st.error(
+            "**Falha ao conectar no banco de dados.** As propostas enviadas agora "
+            "podem ser perdidas. Mensagem técnica:\n\n"
+            f"```\n{erro}\n```"
+        )
 
     pagina = st.sidebar.radio("Navegação", ["Enviar proposta", "Coordenação"])
     if pagina == "Enviar proposta":
