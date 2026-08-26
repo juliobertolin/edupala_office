@@ -62,7 +62,7 @@ EVENTO = "Edupala"                       # nome do evento
 EDICAO = "2026"                          # ano/edição
 PRAZO = date(2026, 9, 18)                # ano, mês, dia — último dia de envio
 DIVULGACAO = "21 de setembro de 2026"     # quando sai o resultado
-CONTATO = "congressoedupala@gmail.br"      # e-mail de dúvidas
+CONTATO = "congressoedupala@gmail.com"      # e-mail de dúvidas
 PREFIXO_PROTOCOLO = "EDU"                # protocolos ficam EDU2026-OF001, EDU2026-OF002...
 
 # Arquivo usado SOMENTE quando não há banco na nuvem configurado (testes locais)
